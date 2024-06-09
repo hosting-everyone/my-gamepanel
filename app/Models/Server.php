@@ -31,11 +31,11 @@ use Pterodactyl\Exceptions\Http\Server\ServerStateConflictException;
  * @property int $io
  * @property int $cpu
  * @property string|null $threads
- * @property bool $oom_disabled
+ * @property bool $oom_killer
  * @property int $allocation_id
  * @property int $nest_id
  * @property int $egg_id
- * @property string $startup
+ * @property string|null $startup
  * @property string $image
  * @property int|null $allocation_limit
  * @property int|null $database_limit
@@ -55,6 +55,7 @@ use Pterodactyl\Exceptions\Http\Server\ServerStateConflictException;
  * @property \Pterodactyl\Models\Egg|null $egg
  * @property \Illuminate\Database\Eloquent\Collection|\Pterodactyl\Models\Mount[] $mounts
  * @property int|null $mounts_count
+ * @property \Pterodactyl\Models\Location $location
  * @property \Pterodactyl\Models\Nest $nest
  * @property \Pterodactyl\Models\Node $node
  * @property \Illuminate\Notifications\DatabaseNotificationCollection|\Illuminate\Notifications\DatabaseNotification[] $notifications
@@ -89,7 +90,7 @@ use Pterodactyl\Exceptions\Http\Server\ServerStateConflictException;
  * @method static \Illuminate\Database\Eloquent\Builder|Server whereName($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Server whereNestId($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Server whereNodeId($value)
- * @method static \Illuminate\Database\Eloquent\Builder|Server whereOomDisabled($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Server whereOomKiller($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Server whereOwnerId($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Server whereSkipScripts($value)
  * @method static \Illuminate\Database\Eloquent\Builder|Server whereStartup($value)
@@ -115,6 +116,7 @@ class Server extends Model
 
     public const STATUS_INSTALLING = 'installing';
     public const STATUS_INSTALL_FAILED = 'install_failed';
+    public const STATUS_REINSTALL_FAILED = 'reinstall_failed';
     public const STATUS_SUSPENDED = 'suspended';
     public const STATUS_RESTORING_BACKUP = 'restoring_backup';
 
@@ -129,7 +131,7 @@ class Server extends Model
      */
     protected $attributes = [
         'status' => self::STATUS_INSTALLING,
-        'oom_disabled' => true,
+        'oom_killer' => false,
         'installed_at' => null,
     ];
 
@@ -137,11 +139,6 @@ class Server extends Model
      * The default relationships to load for all server models.
      */
     protected $with = ['allocation'];
-
-    /**
-     * The attributes that should be mutated to dates.
-     */
-    protected $dates = [self::CREATED_AT, self::UPDATED_AT, 'deleted_at', 'installed_at'];
 
     /**
      * Fields that are not mass assignable.
@@ -160,14 +157,14 @@ class Server extends Model
         'io' => 'required|numeric|between:10,1000',
         'cpu' => 'required|numeric|min:0',
         'threads' => 'nullable|regex:/^[0-9-,]+$/',
-        'oom_disabled' => 'sometimes|boolean',
+        'oom_killer' => 'sometimes|boolean',
         'disk' => 'required|numeric|min:0',
         'allocation_id' => 'required|bail|unique:servers|exists:allocations,id',
         'nest_id' => 'required|exists:nests,id',
         'egg_id' => 'required|exists:eggs,id',
-        'startup' => 'required|string',
+        'startup' => 'nullable|string',
         'skip_scripts' => 'sometimes|boolean',
-        'image' => 'required|string|max:191',
+        'image' => ['required', 'string', 'max:191', 'regex:/^[\w\.\/\-:@ ]*$/'],
         'database_limit' => 'present|nullable|integer|min:0',
         'allocation_limit' => 'sometimes|nullable|integer|min:0',
         'backup_limit' => 'present|nullable|integer|min:0',
@@ -185,13 +182,17 @@ class Server extends Model
         'disk' => 'integer',
         'io' => 'integer',
         'cpu' => 'integer',
-        'oom_disabled' => 'boolean',
+        'oom_killer' => 'boolean',
         'allocation_id' => 'integer',
         'nest_id' => 'integer',
         'egg_id' => 'integer',
         'database_limit' => 'integer',
         'allocation_limit' => 'integer',
         'backup_limit' => 'integer',
+        self::CREATED_AT => 'datetime',
+        self::UPDATED_AT => 'datetime',
+        'deleted_at' => 'datetime',
+        'installed_at' => 'datetime',
     ];
 
     /**
@@ -354,6 +355,7 @@ class Server extends Model
     {
         if (
             $this->isSuspended() ||
+            $this->node->isUnderMaintenance() ||
             !$this->isInstalled() ||
             $this->status === self::STATUS_RESTORING_BACKUP ||
             !is_null($this->transfer)
