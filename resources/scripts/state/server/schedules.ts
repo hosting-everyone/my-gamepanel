@@ -17,14 +17,14 @@ const schedules: ServerScheduleStore = {
 
     appendSchedule: action((state, payload) => {
         if (state.data.find(schedule => schedule.id === payload.id)) {
-            state.data = state.data.map(schedule => schedule.id === payload.id ? payload : schedule);
+            state.data = state.data.map(schedule => (schedule.id === payload.id ? payload : schedule));
         } else {
-            state.data = [ ...state.data, payload ];
+            state.data = [...state.data, payload];
         }
     }),
 
     removeSchedule: action((state, payload) => {
-        state.data = [ ...state.data.filter(schedule => schedule.id !== payload) ];
+        state.data = [...state.data.filter(schedule => schedule.id !== payload)];
     }),
 };
 

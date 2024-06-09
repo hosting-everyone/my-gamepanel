@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\Pivot;
  * @method static \Illuminate\Database\Eloquent\Builder|ActivityLogSubject newModelQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|ActivityLogSubject newQuery()
  * @method static \Illuminate\Database\Eloquent\Builder|ActivityLogSubject query()
+ *
  * @mixin \Eloquent
  */
 class ActivityLogSubject extends Pivot
@@ -35,6 +36,11 @@ class ActivityLogSubject extends Pivot
 
     public function subject()
     {
-        return $this->morphTo()->withTrashed();
+        $morph = $this->morphTo();
+        if (method_exists($morph, 'withTrashed')) {
+            return $morph->withTrashed();
+        }
+
+        return $morph;
     }
 }

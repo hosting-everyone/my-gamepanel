@@ -1,6 +1,5 @@
 import { fileBitsToString } from '@/helpers';
 import useFileManagerSwr from '@/plugins/useFileManagerSwr';
-import React from 'react';
 import Modal, { RequiredModalProps } from '@/components/elements/Modal';
 import { Form, Formik, FormikHelpers } from 'formik';
 import Field from '@/components/elements/Field';
@@ -15,8 +14,8 @@ interface FormikValues {
 }
 
 interface File {
-    file: string,
-    mode: string,
+    file: string;
+    mode: string;
 }
 
 type OwnProps = RequiredModalProps & { files: File[] };
@@ -28,15 +27,21 @@ const ChmodFileModal = ({ files, ...props }: OwnProps) => {
     const directory = ServerContext.useStoreState(state => state.files.directory);
     const setSelectedFiles = ServerContext.useStoreActions(actions => actions.files.setSelectedFiles);
 
-    const submit = ({ mode }: FormikValues, { setSubmitting }: FormikHelpers<FormikValues>) => {
+    const submit = async ({ mode }: FormikValues, { setSubmitting }: FormikHelpers<FormikValues>) => {
         clearFlashes('files');
 
-        mutate(data => data.map(f => f.name === files[0].file ? { ...f, mode: fileBitsToString(mode, !f.isFile), modeBits: mode } : f), false);
+        await mutate(
+            data =>
+                data!.map(f =>
+                    f.name === files[0]?.file ? { ...f, mode: fileBitsToString(mode, !f.isFile), modeBits: mode } : f,
+                ),
+            false,
+        );
 
         const data = files.map(f => ({ file: f.file, mode: mode }));
 
         chmodFiles(uuid, directory, data)
-            .then((): Promise<any> => files.length > 0 ? mutate() : Promise.resolve())
+            .then((): Promise<any> => (files.length > 0 ? mutate() : Promise.resolve()))
             .then(() => setSelectedFiles([]))
             .catch(error => {
                 mutate();
@@ -47,19 +52,13 @@ const ChmodFileModal = ({ files, ...props }: OwnProps) => {
     };
 
     return (
-        <Formik onSubmit={submit} initialValues={{ mode: files.length > 1 ? '' : (files[0].mode || '') }}>
+        <Formik onSubmit={submit} initialValues={{ mode: files.length > 1 ? '' : files[0]?.mode ?? '' }}>
             {({ isSubmitting }) => (
                 <Modal {...props} dismissable={!isSubmitting} showSpinnerOverlay={isSubmitting}>
                     <Form css={tw`m-0`}>
                         <div css={tw`flex flex-wrap items-end`}>
                             <div css={tw`w-full sm:flex-1 sm:mr-4`}>
-                                <Field
-                                    type={'string'}
-                                    id={'file_mode'}
-                                    name={'mode'}
-                                    label={'File Mode'}
-                                    autoFocus
-                                />
+                                <Field type={'string'} id={'file_mode'} name={'mode'} label={'File Mode'} autoFocus />
                             </div>
                             <div css={tw`w-full sm:w-auto mt-4 sm:mt-0`}>
                                 <Button css={tw`w-full`}>Update</Button>

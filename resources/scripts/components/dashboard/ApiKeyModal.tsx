@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import { useContext } from 'react';
 import tw from 'twin.macro';
 import Button from '@/components/elements/Button';
 import asModal from '@/hoc/asModal';
@@ -20,7 +20,9 @@ const ApiKeyModal = ({ apiKey }: Props) => {
                 shown again.
             </p>
             <pre css={tw`text-sm bg-neutral-900 rounded py-2 px-4 font-mono`}>
-                <CopyOnClick text={apiKey}><code css={tw`font-mono`}>{apiKey}</code></CopyOnClick>
+                <CopyOnClick text={apiKey}>
+                    <code css={tw`font-mono`}>{apiKey}</code>
+                </CopyOnClick>
             </pre>
             <div css={tw`flex justify-end mt-6`}>
                 <Button type={'button'} onClick={() => dismiss()}>

@@ -1,4 +1,3 @@
-import React from 'react';
 import { Field, Form, Formik, FormikHelpers } from 'formik';
 import { object, string } from 'yup';
 import FormikFieldWrapper from '@/components/elements/FormikFieldWrapper';
@@ -6,7 +5,7 @@ import SpinnerOverlay from '@/components/elements/SpinnerOverlay';
 import tw from 'twin.macro';
 import Button from '@/components/elements/Button';
 import Input, { Textarea } from '@/components/elements/Input';
-import styled from 'styled-components/macro';
+import styled from 'styled-components';
 import { useFlashKey } from '@/plugins/useFlash';
 import { createSSHKey, useSSHKeys } from '@/api/account/ssh-keys';
 
@@ -15,7 +14,9 @@ interface Values {
     publicKey: string;
 }
 
-const CustomTextarea = styled(Textarea)`${tw`h-32`}`;
+const CustomTextarea = styled(Textarea)`
+    ${tw`h-32`}
+`;
 
 export default () => {
     const { clearAndAddHttpError } = useFlashKey('account');
@@ -25,11 +26,11 @@ export default () => {
         clearAndAddHttpError();
 
         createSSHKey(values.name, values.publicKey)
-            .then((key) => {
+            .then(key => {
                 resetForm();
-                mutate((data) => (data || []).concat(key));
+                mutate(data => (data || []).concat(key));
             })
-            .catch((error) => clearAndAddHttpError(error))
+            .catch(error => clearAndAddHttpError(error))
             .then(() => setSubmitting(false));
     };
 
@@ -45,16 +46,16 @@ export default () => {
             >
                 {({ isSubmitting }) => (
                     <Form>
-                        <SpinnerOverlay visible={isSubmitting}/>
+                        <SpinnerOverlay visible={isSubmitting} />
                         <FormikFieldWrapper label={'SSH Key Name'} name={'name'} css={tw`mb-6`}>
-                            <Field name={'name'} as={Input}/>
+                            <Field name={'name'} as={Input} />
                         </FormikFieldWrapper>
                         <FormikFieldWrapper
                             label={'Public Key'}
                             name={'publicKey'}
                             description={'Enter your public SSH key.'}
                         >
-                            <Field name={'publicKey'} as={CustomTextarea}/>
+                            <Field name={'publicKey'} as={CustomTextarea} />
                         </FormikFieldWrapper>
                         <div css={tw`flex justify-end mt-6`}>
                             <Button>Save</Button>

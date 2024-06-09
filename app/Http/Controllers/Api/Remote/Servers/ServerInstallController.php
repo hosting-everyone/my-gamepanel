@@ -2,6 +2,7 @@
 
 namespace Pterodactyl\Http\Controllers\Api\Remote\Servers;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Pterodactyl\Models\Server;
@@ -15,32 +16,18 @@ use Pterodactyl\Http\Requests\Api\Remote\InstallationDataRequest;
 class ServerInstallController extends Controller
 {
     /**
-     * @var \Pterodactyl\Repositories\Eloquent\ServerRepository
-     */
-    private $repository;
-
-    /**
-     * @var \Illuminate\Contracts\Events\Dispatcher
-     */
-    private $eventDispatcher;
-
-    /**
      * ServerInstallController constructor.
      */
-    public function __construct(ServerRepository $repository, EventDispatcher $eventDispatcher)
+    public function __construct(private ServerRepository $repository, private EventDispatcher $eventDispatcher)
     {
-        $this->repository = $repository;
-        $this->eventDispatcher = $eventDispatcher;
     }
 
     /**
      * Returns installation information for a server.
      *
-     * @return \Illuminate\Http\JsonResponse
-     *
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
      */
-    public function index(Request $request, string $uuid)
+    public function index(Request $request, string $uuid): JsonResponse
     {
         $server = $this->repository->getByUuid($uuid);
         $egg = $server->egg;
@@ -55,24 +42,36 @@ class ServerInstallController extends Controller
     /**
      * Updates the installation state of a server.
      *
-     * @return \Illuminate\Http\JsonResponse
-     *
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
      * @throws \Pterodactyl\Exceptions\Model\DataValidationException
      */
-    public function store(InstallationDataRequest $request, string $uuid)
+    public function store(InstallationDataRequest $request, string $uuid): JsonResponse
     {
         $server = $this->repository->getByUuid($uuid);
+        $status = null;
 
-        $status = $request->boolean('successful') ? null : Server::STATUS_INSTALL_FAILED;
+        // Make sure the type of failure is accurate
+        if (!$request->boolean('successful')) {
+            $status = Server::STATUS_INSTALL_FAILED;
+
+            if ($request->boolean('reinstall')) {
+                $status = Server::STATUS_REINSTALL_FAILED;
+            }
+        }
+
+        // Keep the server suspended if it's already suspended
         if ($server->status === Server::STATUS_SUSPENDED) {
             $status = Server::STATUS_SUSPENDED;
         }
 
-        $this->repository->update($server->id, ['status' => $status], true, true);
+        $this->repository->update($server->id, ['status' => $status, 'installed_at' => CarbonImmutable::now()], true, true);
 
         // If the server successfully installed, fire installed event.
-        if ($status === null) {
+        // This logic allows individually disabling install and reinstall notifications separately.
+        $isInitialInstall = is_null($server->installed_at);
+        if ($isInitialInstall && config()->get('pterodactyl.email.send_install_notification', true)) {
+            $this->eventDispatcher->dispatch(new ServerInstalled($server));
+        } elseif (!$isInitialInstall && config()->get('pterodactyl.email.send_reinstall_notification', true)) {
             $this->eventDispatcher->dispatch(new ServerInstalled($server));
         }
 

@@ -1,18 +1,26 @@
-import getServer, { Server } from '@/api/server/getServer';
-import { action, Action, computed, Computed, createContextStore, thunk, Thunk } from 'easy-peasy';
-import socket, { SocketStore } from './socket';
-import files, { ServerFileStore } from '@/state/server/files';
-import subusers, { ServerSubuserStore } from '@/state/server/subusers';
-import { composeWithDevTools } from 'redux-devtools-extension';
-import schedules, { ServerScheduleStore } from '@/state/server/schedules';
-import databases, { ServerDatabaseStore } from '@/state/server/databases';
+import type { Action, Computed, Thunk } from 'easy-peasy';
+import { action, computed, createContextStore, thunk } from 'easy-peasy';
 import isEqual from 'react-fast-compare';
+
+import type { Server } from '@/api/server/getServer';
+import getServer from '@/api/server/getServer';
+import type { ServerDatabaseStore } from '@/state/server/databases';
+import databases from '@/state/server/databases';
+import type { ServerFileStore } from '@/state/server/files';
+import files from '@/state/server/files';
+import type { ServerScheduleStore } from '@/state/server/schedules';
+import schedules from '@/state/server/schedules';
+import type { SocketStore } from '@/state/server/socket';
+import socket from '@/state/server/socket';
+import type { ServerSubuserStore } from '@/state/server/subusers';
+import subusers from '@/state/server/subusers';
 
 export type ServerStatus = 'offline' | 'starting' | 'stopping' | 'running' | null;
 
 interface ServerDataStore {
     data?: Server;
     inConflictState: Computed<ServerDataStore, boolean>;
+    isInstalling: Computed<ServerDataStore, boolean>;
     permissions: string[];
 
     getServer: Thunk<ServerDataStore, string, Record<string, unknown>, ServerStore, Promise<void>>;
@@ -29,11 +37,15 @@ const server: ServerDataStore = {
             return false;
         }
 
-        return state.data.status !== null || state.data.isTransferring;
+        return state.data.status !== null || state.data.isTransferring || state.data.isNodeUnderMaintenance;
+    }),
+
+    isInstalling: computed(state => {
+        return state.data?.status === 'installing' || state.data?.status === 'install_failed';
     }),
 
     getServer: thunk(async (actions, payload) => {
-        const [ server, permissions ] = await getServer(payload);
+        const [server, permissions] = await getServer(payload);
 
         actions.setServer(server);
         actions.setPermissions(permissions);
@@ -106,10 +118,5 @@ export const ServerContext = createContextStore<ServerStore>({
 
         state.socket.instance = null;
         state.socket.connected = false;
-    }),
-}, {
-    compose: composeWithDevTools({
-        name: 'ServerStore',
-        trace: true,
     }),
 });

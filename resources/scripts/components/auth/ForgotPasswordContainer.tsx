@@ -1,25 +1,26 @@
-import * as React from 'react';
+import { useStoreState } from 'easy-peasy';
+import type { FormikHelpers } from 'formik';
+import { Formik } from 'formik';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import Reaptcha from 'reaptcha';
+import tw from 'twin.macro';
+import { object, string } from 'yup';
+
 import requestPasswordResetEmail from '@/api/auth/requestPasswordResetEmail';
 import { httpErrorToHuman } from '@/api/http';
 import LoginFormContainer from '@/components/auth/LoginFormContainer';
-import { useStoreState } from 'easy-peasy';
-import Field from '@/components/elements/Field';
-import { Formik, FormikHelpers } from 'formik';
-import { object, string } from 'yup';
-import tw from 'twin.macro';
 import Button from '@/components/elements/Button';
-import Reaptcha from 'reaptcha';
+import Field from '@/components/elements/Field';
 import useFlash from '@/plugins/useFlash';
 
 interface Values {
     email: string;
 }
 
-export default () => {
+function ForgotPasswordContainer() {
     const ref = useRef<Reaptcha>(null);
-    const [ token, setToken ] = useState('');
+    const [token, setToken] = useState('');
 
     const { clearFlashes, addFlash } = useFlash();
     const { enabled: recaptchaEnabled, siteKey } = useStoreState(state => state.settings.data!.recaptcha);
@@ -55,7 +56,9 @@ export default () => {
             })
             .then(() => {
                 setToken('');
-                if (ref.current) ref.current.reset();
+                if (ref.current !== null) {
+                    void ref.current.reset();
+                }
 
                 setSubmitting(false);
             });
@@ -66,47 +69,42 @@ export default () => {
             onSubmit={handleSubmission}
             initialValues={{ email: '' }}
             validationSchema={object().shape({
-                email: string().email('A valid email address must be provided to continue.')
+                email: string()
+                    .email('A valid email address must be provided to continue.')
                     .required('A valid email address must be provided to continue.'),
             })}
         >
             {({ isSubmitting, setSubmitting, submitForm }) => (
-                <LoginFormContainer
-                    title={'Request Password Reset'}
-                    css={tw`w-full flex`}
-                >
+                <LoginFormContainer title={'Request Password Reset'} css={tw`w-full flex`}>
                     <Field
                         light
                         label={'Email'}
-                        description={'Enter your account email address to receive instructions on resetting your password.'}
+                        description={
+                            'Enter your account email address to receive instructions on resetting your password.'
+                        }
                         name={'email'}
                         type={'email'}
                     />
                     <div css={tw`mt-6`}>
-                        <Button
-                            type={'submit'}
-                            size={'xlarge'}
-                            disabled={isSubmitting}
-                            isLoading={isSubmitting}
-                        >
+                        <Button type={'submit'} size={'xlarge'} disabled={isSubmitting} isLoading={isSubmitting}>
                             Send Email
                         </Button>
                     </div>
-                    {recaptchaEnabled &&
-                    <Reaptcha
-                        ref={ref}
-                        size={'invisible'}
-                        sitekey={siteKey || '_invalid_key'}
-                        onVerify={response => {
-                            setToken(response);
-                            submitForm();
-                        }}
-                        onExpire={() => {
-                            setSubmitting(false);
-                            setToken('');
-                        }}
-                    />
-                    }
+                    {recaptchaEnabled && (
+                        <Reaptcha
+                            ref={ref}
+                            size={'invisible'}
+                            sitekey={siteKey || '_invalid_key'}
+                            onVerify={response => {
+                                setToken(response);
+                                void submitForm();
+                            }}
+                            onExpire={() => {
+                                setSubmitting(false);
+                                setToken('');
+                            }}
+                        />
+                    )}
                     <div css={tw`mt-6 text-center`}>
                         <Link
                             to={'/auth/login'}
@@ -119,4 +117,6 @@ export default () => {
             )}
         </Formik>
     );
-};
+}
+
+export default ForgotPasswordContainer;

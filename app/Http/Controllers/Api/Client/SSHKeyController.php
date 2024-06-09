@@ -11,13 +11,13 @@ use Pterodactyl\Http\Requests\Api\Client\Account\StoreSSHKeyRequest;
 class SSHKeyController extends ClientApiController
 {
     /**
-     * Returns all of the SSH keys that have been configured for the logged in
+     * Returns all the SSH keys that have been configured for the logged-in
      * user account.
      */
     public function index(ClientApiRequest $request): array
     {
         return $this->fractal->collection($request->user()->sshKeys)
-            ->transformWith($this->getTransformer(UserSSHKeyTransformer::class))
+            ->transformWith(UserSSHKeyTransformer::class)
             ->toArray();
     }
 
@@ -38,23 +38,29 @@ class SSHKeyController extends ClientApiController
             ->log();
 
         return $this->fractal->item($model)
-            ->transformWith($this->getTransformer(UserSSHKeyTransformer::class))
+            ->transformWith(UserSSHKeyTransformer::class)
             ->toArray();
     }
 
     /**
      * Deletes an SSH key from the user's account.
      */
-    public function delete(ClientApiRequest $request, string $identifier): JsonResponse
+    public function delete(ClientApiRequest $request): JsonResponse
     {
-        $key = $request->user()->sshKeys()->where('fingerprint', $identifier)->firstOrFail();
+        $this->validate($request, ['fingerprint' => ['required', 'string']]);
 
-        $key->delete();
+        $key = $request->user()->sshKeys()
+            ->where('fingerprint', $request->input('fingerprint'))
+            ->first();
 
-        Activity::event('user:ssh-key.delete')
-            ->subject($key)
-            ->property('fingerprint', $key->fingerprint)
-            ->log();
+        if (!is_null($key)) {
+            $key->delete();
+
+            Activity::event('user:ssh-key.delete')
+                ->subject($key)
+                ->property('fingerprint', $key->fingerprint)
+                ->log();
+        }
 
         return new JsonResponse([], JsonResponse::HTTP_NO_CONTENT);
     }

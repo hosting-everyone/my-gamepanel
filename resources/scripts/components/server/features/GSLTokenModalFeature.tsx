@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ServerContext } from '@/state/server';
 import Modal from '@/components/elements/Modal';
 import tw from 'twin.macro';
@@ -15,8 +15,8 @@ interface Values {
 }
 
 const GSLTokenModalFeature = () => {
-    const [ visible, setVisible ] = useState(false);
-    const [ loading, setLoading ] = useState(false);
+    const [visible, setVisible] = useState(false);
+    const [loading, setLoading] = useState(false);
 
     const uuid = ServerContext.useStoreState(state => state.server.data!.uuid);
     const status = ServerContext.useStoreState(state => state.status.value);
@@ -26,10 +26,7 @@ const GSLTokenModalFeature = () => {
     useEffect(() => {
         if (!connected || !instance || status === 'running') return;
 
-        const errors = [
-            '(gsl token expired)',
-            '(account not found)',
-        ];
+        const errors = ['(gsl token expired)', '(account not found)'];
 
         const listener = (line: string) => {
             if (errors.some(p => line.toLowerCase().includes(p))) {
@@ -42,7 +39,7 @@ const GSLTokenModalFeature = () => {
         return () => {
             instance.removeListener(SocketEvent.CONSOLE_OUTPUT, listener);
         };
-    }, [ connected, instance, status ]);
+    }, [connected, instance, status]);
 
     const updateGSLToken = (values: Values) => {
         setLoading(true);
@@ -69,16 +66,23 @@ const GSLTokenModalFeature = () => {
     }, []);
 
     return (
-        <Formik
-            onSubmit={updateGSLToken}
-            initialValues={{ gslToken: '' }}
-        >
-            <Modal visible={visible} onDismissed={() => setVisible(false)} closeOnBackground={false} showSpinnerOverlay={loading}>
-                <FlashMessageRender key={'feature:gslToken'} css={tw`mb-4`}/>
+        <Formik onSubmit={updateGSLToken} initialValues={{ gslToken: '' }}>
+            <Modal
+                visible={visible}
+                onDismissed={() => setVisible(false)}
+                closeOnBackground={false}
+                showSpinnerOverlay={loading}
+            >
+                <FlashMessageRender key={'feature:gslToken'} css={tw`mb-4`} />
                 <Form>
                     <h2 css={tw`text-2xl mb-4 text-neutral-100`}>Invalid GSL token!</h2>
-                    <p css={tw`mt-4`}>It seems like your Gameserver Login Token (GSL token) is invalid or has expired.</p>
-                    <p css={tw`mt-4`}>You can either generate a new one and enter it below or leave the field blank to remove it completely.</p>
+                    <p css={tw`mt-4`}>
+                        It seems like your Gameserver Login Token (GSL token) is invalid or has expired.
+                    </p>
+                    <p css={tw`mt-4`}>
+                        You can either generate a new one and enter it below or leave the field blank to remove it
+                        completely.
+                    </p>
                     <div css={tw`sm:flex items-center mt-4`}>
                         <Field
                             name={'gslToken'}

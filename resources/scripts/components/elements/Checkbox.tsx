@@ -1,10 +1,13 @@
-import React from 'react';
-import { Field, FieldProps } from 'formik';
+import type { FieldProps } from 'formik';
+import { Field } from 'formik';
+
 import Input from '@/components/elements/Input';
 
 interface Props {
+    id: string;
     name: string;
-    value: string;
+    value?: string;
+    label?: string;
     className?: string;
 }
 

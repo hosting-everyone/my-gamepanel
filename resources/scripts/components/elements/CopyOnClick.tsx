@@ -1,26 +1,19 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import CopyToClipboard from 'react-copy-to-clipboard';
-import tw from 'twin.macro';
-import styled, { keyframes } from 'styled-components/macro';
-import Fade from '@/components/elements/Fade';
-import { SwitchTransition } from 'react-transition-group';
+import classNames from 'classnames';
+import copy from 'copy-to-clipboard';
+import type { MouseEvent, ReactNode } from 'react';
+import { Children, cloneElement, isValidElement, useEffect, useState } from 'react';
 
-const fade = keyframes`
-    from { opacity: 0 }
-    to { opacity: 1 }
-`;
+import Portal from '@/components/elements/Portal';
+import FadeTransition from '@/components/elements/transitions/FadeTransition';
 
-const Toast = styled.div`
-    ${tw`fixed z-50 bottom-0 left-0 mb-4 w-full flex justify-end pr-4`};
-    animation: ${fade} 250ms linear;
+interface CopyOnClickProps {
+    text: string | number | null | undefined;
+    showInNotification?: boolean;
+    children: ReactNode;
+}
 
-    & > div {
-        ${tw`rounded px-4 py-2 text-white bg-neutral-900 border border-black opacity-75`};
-    }
-`;
-
-const CopyOnClick: React.FC<{ text: any }> = ({ text, children }) => {
-    const [ copied, setCopied ] = useState(false);
+const CopyOnClick = ({ text, showInNotification = true, children }: CopyOnClickProps) => {
+    const [copied, setCopied] = useState(false);
 
     useEffect(() => {
         if (!copied) return;
@@ -32,30 +25,44 @@ const CopyOnClick: React.FC<{ text: any }> = ({ text, children }) => {
         return () => {
             clearTimeout(timeout);
         };
-    }, [ copied ]);
+    }, [copied]);
 
-    const onCopy = useCallback(() => {
-        setCopied(true);
-    }, []);
+    if (!isValidElement(children)) {
+        throw new Error('Component passed to <CopyOnClick/> must be a valid React element.');
+    }
+
+    const child = !text
+        ? Children.only(children)
+        : cloneElement(Children.only(children), {
+              // @ts-expect-error I don't know
+              className: classNames(children.props.className || '', 'cursor-pointer'),
+              onClick: (e: MouseEvent<HTMLElement>) => {
+                  copy(String(text));
+                  setCopied(true);
+                  if (typeof children.props.onClick === 'function') {
+                      children.props.onClick(e);
+                  }
+              },
+          });
 
     return (
         <>
-            <SwitchTransition>
-                <Fade timeout={250} key={copied ? 'visible' : 'invisible'}>
-                    {copied ?
-                        <Toast>
-                            <div>
-                                <p>Copied &quot;{text}&quot; to clipboard.</p>
+            {copied && (
+                <Portal>
+                    <FadeTransition show duration="duration-250" key={copied ? 'visible' : 'invisible'}>
+                        <div className="fixed bottom-0 right-0 z-50 m-4">
+                            <div className="rounded-md bg-neutral-600/95 py-3 px-4 text-slate-200 shadow">
+                                <p>
+                                    {showInNotification
+                                        ? `Copied "${String(text)}" to clipboard.`
+                                        : 'Copied text to clipboard.'}
+                                </p>
                             </div>
-                        </Toast>
-                        :
-                        <></>
-                    }
-                </Fade>
-            </SwitchTransition>
-            <CopyToClipboard onCopy={onCopy} text={text} options={{ debug: true }} css={tw`cursor-pointer`}>
-                {children}
-            </CopyToClipboard>
+                        </div>
+                    </FadeTransition>
+                </Portal>
+            )}
+            {child}
         </>
     );
 };

@@ -35,12 +35,14 @@ const flashes: FlashStore = {
         } else {
             console.error(payload.error);
 
-            state.items = [ {
-                type: 'error',
-                title: 'Error',
-                key: payload.key,
-                message: httpErrorToHuman(payload.error),
-            } ];
+            state.items = [
+                {
+                    type: 'error',
+                    title: 'Error',
+                    key: payload.key,
+                    message: httpErrorToHuman(payload.error),
+                },
+            ];
         }
     }),
 

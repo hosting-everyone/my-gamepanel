@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ServerContext } from '@/state/server';
 import { Actions, useStoreActions, useStoreState } from 'easy-peasy';
 import { ApplicationStore } from '@/state';
@@ -13,7 +13,7 @@ import ServerContentBlock from '@/components/elements/ServerContentBlock';
 import tw from 'twin.macro';
 
 export default () => {
-    const [ loading, setLoading ] = useState(true);
+    const [loading, setLoading] = useState(true);
 
     const uuid = ServerContext.useStoreState(state => state.server.data!.uuid);
     const subusers = ServerContext.useStoreState(state => state.subusers.data);
@@ -44,24 +44,20 @@ export default () => {
     }, []);
 
     if (!subusers.length && (loading || !Object.keys(permissions).length)) {
-        return <Spinner size={'large'} centered/>;
+        return <Spinner size={'large'} centered />;
     }
 
     return (
         <ServerContentBlock title={'Users'}>
-            <FlashMessageRender byKey={'users'} css={tw`mb-4`}/>
-            {!subusers.length ?
-                <p css={tw`text-center text-sm text-neutral-300`}>
-                    It looks like you don&apos;t have any subusers.
-                </p>
-                :
-                subusers.map(subuser => (
-                    <UserRow key={subuser.uuid} subuser={subuser}/>
-                ))
-            }
+            <FlashMessageRender byKey={'users'} css={tw`mb-4`} />
+            {!subusers.length ? (
+                <p css={tw`text-center text-sm text-neutral-300`}>It looks like you don&apos;t have any subusers.</p>
+            ) : (
+                subusers.map(subuser => <UserRow key={subuser.uuid} subuser={subuser} />)
+            )}
             <Can action={'user.create'}>
                 <div css={tw`flex justify-end mt-6`}>
-                    <AddSubuserButton/>
+                    <AddSubuserButton />
                 </div>
             </Can>
         </ServerContentBlock>

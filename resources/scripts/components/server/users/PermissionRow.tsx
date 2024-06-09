@@ -1,33 +1,32 @@
-import styled from 'styled-components/macro';
+import styled from 'styled-components';
 import tw from 'twin.macro';
 import Checkbox from '@/components/elements/Checkbox';
-import React from 'react';
 import { useStoreState } from 'easy-peasy';
 import Label from '@/components/elements/Label';
 
 const Container = styled.label`
-  ${tw`flex items-center border border-transparent rounded md:p-2 transition-colors duration-75`};
-  text-transform: none;
+    ${tw`flex items-center border border-transparent rounded md:p-2 transition-colors duration-75`};
+    text-transform: none;
 
-  &:not(.disabled) {
-      ${tw`cursor-pointer`};
+    &:not(.disabled) {
+        ${tw`cursor-pointer`};
 
-      &:hover {
-        ${tw`border-neutral-500 bg-neutral-800`};
-      }
-  }
-  
-  &:not(:first-of-type) {
-      ${tw`mt-4 sm:mt-2`};
-  }
+        &:hover {
+            ${tw`border-neutral-500 bg-neutral-800`};
+        }
+    }
 
-  &.disabled {
-      ${tw`opacity-50`};
+    &:not(:first-of-type) {
+        ${tw`mt-4 sm:mt-2`};
+    }
 
-      & input[type="checkbox"]:not(:checked) {
-          ${tw`border-0`};
-      }
-  }
+    &.disabled {
+        ${tw`opacity-50`};
+
+        & input[type='checkbox']:not(:checked) {
+            ${tw`border-0`};
+        }
+    }
 `;
 
 interface Props {
@@ -36,7 +35,7 @@ interface Props {
 }
 
 const PermissionRow = ({ permission, disabled }: Props) => {
-    const [ key, pkey ] = permission.split('.', 2);
+    const [key = '', pkey = ''] = permission.split('.', 2);
     const permissions = useStoreState(state => state.permissions.data);
 
     return (
@@ -51,12 +50,12 @@ const PermissionRow = ({ permission, disabled }: Props) => {
                 />
             </div>
             <div css={tw`flex-1`}>
-                <Label as={'p'} css={tw`font-medium`}>{pkey}</Label>
-                {permissions[key].keys[pkey].length > 0 &&
-                <p css={tw`text-xs text-neutral-400 mt-1`}>
-                    {permissions[key].keys[pkey]}
-                </p>
-                }
+                <Label as={'p'} css={tw`font-medium`}>
+                    {pkey}
+                </Label>
+                {(permissions[key]?.keys?.[pkey]?.length ?? 0) > 0 && (
+                    <p css={tw`text-xs text-neutral-400 mt-1`}>{permissions[key]?.keys?.[pkey] ?? ''}</p>
+                )}
             </div>
         </Container>
     );

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ServerContext } from '@/state/server';
 import Modal from '@/components/elements/Modal';
 import tw from 'twin.macro';
@@ -22,26 +22,26 @@ const MATCH_ERRORS = [
 ];
 
 const JavaVersionModalFeature = () => {
-    const [ visible, setVisible ] = useState(false);
-    const [ loading, setLoading ] = useState(false);
-    const [ selectedVersion, setSelectedVersion ] = useState('');
+    const [visible, setVisible] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [selectedVersion, setSelectedVersion] = useState('');
 
     const uuid = ServerContext.useStoreState(state => state.server.data!.uuid);
     const status = ServerContext.useStoreState(state => state.status.value);
     const { clearFlashes, clearAndAddHttpError } = useFlash();
     const { instance } = ServerContext.useStoreState(state => state.socket);
 
-    const { data, isValidating, mutate } = getServerStartup(uuid, null, { revalidateOnMount: false });
+    const { data, isValidating, mutate } = getServerStartup(uuid, undefined, { revalidateOnMount: false });
 
     useEffect(() => {
         if (!visible) return;
 
-        mutate().then((value) => {
-            setSelectedVersion(Object.keys(value?.dockerImages || [])[0] || '');
+        mutate().then(value => {
+            setSelectedVersion(Object.values(value?.dockerImages || [])[0] || '');
         });
-    }, [ visible ]);
+    }, [visible]);
 
-    useWebsocketEvent(SocketEvent.CONSOLE_OUTPUT, (data) => {
+    useWebsocketEvent(SocketEvent.CONSOLE_OUTPUT, data => {
         if (status === 'running') return;
 
         if (MATCH_ERRORS.some(p => data.toLowerCase().includes(p.toLowerCase()))) {
@@ -75,7 +75,7 @@ const JavaVersionModalFeature = () => {
             closeOnBackground={false}
             showSpinnerOverlay={loading}
         >
-            <FlashMessageRender key={'feature:javaVersion'} css={tw`mb-4`}/>
+            <FlashMessageRender key={'feature:javaVersion'} css={tw`mb-4`} />
             <h2 css={tw`text-2xl mb-4 text-neutral-100`}>Unsupported Java Version</h2>
             <p css={tw`mt-4`}>
                 This server is currently running an unsupported version of Java and cannot be started.
@@ -87,12 +87,15 @@ const JavaVersionModalFeature = () => {
                 <div css={tw`mt-4`}>
                     <InputSpinner visible={!data || isValidating}>
                         <Select disabled={!data} onChange={e => setSelectedVersion(e.target.value)}>
-                            {!data
-                                ? <option disabled/>
-                                : Object.keys((data.dockerImages)).map((key) => (
-                                    <option key={key} value={data.dockerImages[key]}>{key}</option>
+                            {!data ? (
+                                <option disabled />
+                            ) : (
+                                Object.keys(data.dockerImages).map(key => (
+                                    <option key={key} value={data.dockerImages[key]}>
+                                        {key}
+                                    </option>
                                 ))
-                            }
+                            )}
                         </Select>
                     </InputSpinner>
                 </div>
