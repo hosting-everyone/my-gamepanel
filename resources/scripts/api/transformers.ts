@@ -40,6 +40,7 @@ export const rawDataToFileObject = (data: FractalResponseData): FileObject => ({
                 'application/x-xz', // .tar.xz, .xz
                 'application/zstd', // .tar.zst, .zst
                 'application/zip', // .zip
+                'application/x-7z-compressed', // .7z
             ].indexOf(this.mimetype) >= 0
         );
     },
@@ -49,7 +50,7 @@ export const rawDataToFileObject = (data: FractalResponseData): FileObject => ({
 
         const matches = ['application/jar', 'application/octet-stream', 'inode/directory', /^image\/(?!svg\+xml)/];
 
-        return matches.every((m) => !this.mimetype.match(m));
+        return matches.every(m => !this.mimetype.match(m));
     },
 });
 

@@ -39,7 +39,10 @@
         pkgs = import nixpkgs {inherit system;};
         mkNodePackage = mk-node-package.lib."${system}".mkNodePackage;
 
-        php81WithExtensions = with pkgs; (php81.buildEnv {
+        php = pkgs.php; # PHP 8.2
+        phpPackages = pkgs.phpPackages; # PHP 8.2
+
+        phpWithExtensions = php.buildEnv {
           extensions = {
             enabled,
             all,
@@ -52,8 +55,8 @@
           extraConfig = ''
             xdebug.mode=debug
           '';
-        });
-        composer = with pkgs; (php81Packages.composer.override {php = php81WithExtensions;});
+        };
+        composer = phpPackages.composer.override {php = phpWithExtensions;};
 
         caCertificates = pkgs.runCommand "ca-certificates" {} ''
           mkdir -p $out/etc/ssl/certs $out/etc/pki/tls/certs
@@ -172,7 +175,7 @@
           buildInputs = [];
 
           buildPhase = ''
-            yarn run build:production
+            pnpm run build
           '';
 
           installPhase = ''
@@ -201,7 +204,7 @@
         };
       in {
         defaultPackage = panel;
-        devShell = import ./shell.nix {inherit composer php81WithExtensions pkgs;};
+        devShell = import ./shell.nix {inherit composer phpWithExtensions pkgs;};
 
         packages = {
           inherit panel;
@@ -223,8 +226,9 @@
                   coreutils
                   mysql80
                   nodejs_18
-                  nodePackages.yarn
-                  php81WithExtensions
+                  nodePackages.pnpm
+                  phpWithExtensions
+                  postgresql_15
                 ];
                 pathsToLink = ["/bin" "/etc"];
               };
@@ -242,7 +246,7 @@
                   caCertificates
                   caddy
                   configs
-                  php81WithExtensions
+                  phpWithExtensions
 
                   panel
                 ];
