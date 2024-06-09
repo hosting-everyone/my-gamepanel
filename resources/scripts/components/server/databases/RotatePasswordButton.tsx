@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import rotateDatabasePassword from '@/api/server/databases/rotateDatabasePassword';
 import { Actions, useStoreActions } from 'easy-peasy';
 import { ApplicationStore } from '@/state';
@@ -8,11 +8,8 @@ import { httpErrorToHuman } from '@/api/http';
 import Button from '@/components/elements/Button';
 import tw from 'twin.macro';
 
-export default ({ databaseId, onUpdate }: {
-    databaseId: string;
-    onUpdate: (database: ServerDatabase) => void;
-}) => {
-    const [ loading, setLoading ] = useState(false);
+export default ({ databaseId, onUpdate }: { databaseId: string; onUpdate: (database: ServerDatabase) => void }) => {
+    const [loading, setLoading] = useState(false);
     const { addFlash, clearFlashes } = useStoreActions((actions: Actions<ApplicationStore>) => actions.flashes);
     const server = ServerContext.useStoreState(state => state.server.data!);
 

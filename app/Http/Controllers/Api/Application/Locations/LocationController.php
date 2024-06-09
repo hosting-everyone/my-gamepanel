@@ -9,8 +9,8 @@ use Spatie\QueryBuilder\QueryBuilder;
 use Pterodactyl\Services\Locations\LocationUpdateService;
 use Pterodactyl\Services\Locations\LocationCreationService;
 use Pterodactyl\Services\Locations\LocationDeletionService;
-use Pterodactyl\Contracts\Repository\LocationRepositoryInterface;
 use Pterodactyl\Transformers\Api\Application\LocationTransformer;
+use Pterodactyl\Exceptions\Http\QueryValueOutOfRangeHttpException;
 use Pterodactyl\Http\Controllers\Api\Application\ApplicationApiController;
 use Pterodactyl\Http\Requests\Api\Application\Locations\GetLocationRequest;
 use Pterodactyl\Http\Requests\Api\Application\Locations\GetLocationsRequest;
@@ -21,69 +21,48 @@ use Pterodactyl\Http\Requests\Api\Application\Locations\UpdateLocationRequest;
 class LocationController extends ApplicationApiController
 {
     /**
-     * @var \Pterodactyl\Services\Locations\LocationCreationService
-     */
-    private $creationService;
-
-    /**
-     * @var \Pterodactyl\Services\Locations\LocationDeletionService
-     */
-    private $deletionService;
-
-    /**
-     * @var \Pterodactyl\Contracts\Repository\LocationRepositoryInterface
-     */
-    private $repository;
-
-    /**
-     * @var \Pterodactyl\Services\Locations\LocationUpdateService
-     */
-    private $updateService;
-
-    /**
      * LocationController constructor.
      */
     public function __construct(
-        LocationCreationService $creationService,
-        LocationDeletionService $deletionService,
-        LocationRepositoryInterface $repository,
-        LocationUpdateService $updateService
+        private LocationCreationService $creationService,
+        private LocationDeletionService $deletionService,
+        private LocationUpdateService $updateService
     ) {
         parent::__construct();
-
-        $this->creationService = $creationService;
-        $this->deletionService = $deletionService;
-        $this->repository = $repository;
-        $this->updateService = $updateService;
     }
 
     /**
-     * Return all of the locations currently registered on the Panel.
+     * Return all the locations currently registered on the Panel.
      */
     public function index(GetLocationsRequest $request): array
     {
+        $perPage = (int) $request->query('per_page', '10');
+        if ($perPage < 1 || $perPage > 100) {
+            throw new QueryValueOutOfRangeHttpException('per_page', 1, 100);
+        }
+
         $locations = QueryBuilder::for(Location::query())
             ->allowedFilters(['short', 'long'])
-            ->allowedSorts(['id'])
-            ->paginate($request->query('per_page') ?? 50);
+            ->allowedSorts(['id', 'short', 'long'])
+            ->paginate($perPage);
 
         return $this->fractal->collection($locations)
-            ->transformWith($this->getTransformer(LocationTransformer::class))
+            ->transformWith(LocationTransformer::class)
             ->toArray();
     }
 
     /**
      * Return a single location.
      */
-    public function view(GetLocationRequest $request): array
+    public function view(GetLocationRequest $request, Location $location): array
     {
-        return $this->fractal->item($request->getModel(Location::class))
-            ->transformWith($this->getTransformer(LocationTransformer::class))
+        return $this->fractal->item($location)
+            ->transformWith(LocationTransformer::class)
             ->toArray();
     }
 
     /**
-     * Store a new location on the Panel and return a HTTP/201 response code with the
+     * Store a new location on the Panel and return an HTTP/201 response code with the
      * new location attached.
      *
      * @throws \Pterodactyl\Exceptions\Model\DataValidationException
@@ -93,12 +72,7 @@ class LocationController extends ApplicationApiController
         $location = $this->creationService->handle($request->validated());
 
         return $this->fractal->item($location)
-            ->transformWith($this->getTransformer(LocationTransformer::class))
-            ->addMeta([
-                'resource' => route('api.application.locations.view', [
-                    'location' => $location->id,
-                ]),
-            ])
+            ->transformWith(LocationTransformer::class)
             ->respond(201);
     }
 
@@ -108,12 +82,12 @@ class LocationController extends ApplicationApiController
      * @throws \Pterodactyl\Exceptions\Model\DataValidationException
      * @throws \Pterodactyl\Exceptions\Repository\RecordNotFoundException
      */
-    public function update(UpdateLocationRequest $request): array
+    public function update(UpdateLocationRequest $request, Location $location): array
     {
-        $location = $this->updateService->handle($request->getModel(Location::class), $request->validated());
+        $location = $this->updateService->handle($location, $request->validated());
 
         return $this->fractal->item($location)
-            ->transformWith($this->getTransformer(LocationTransformer::class))
+            ->transformWith(LocationTransformer::class)
             ->toArray();
     }
 
@@ -122,10 +96,10 @@ class LocationController extends ApplicationApiController
      *
      * @throws \Pterodactyl\Exceptions\Service\Location\HasActiveNodesException
      */
-    public function delete(DeleteLocationRequest $request): Response
+    public function delete(DeleteLocationRequest $request, Location $location): Response
     {
-        $this->deletionService->handle($request->getModel(Location::class));
+        $this->deletionService->handle($location);
 
-        return response('', 204);
+        return $this->returnNoContent();
     }
 }

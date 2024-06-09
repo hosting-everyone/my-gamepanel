@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal, { RequiredModalProps } from '@/components/elements/Modal';
 import { Field, Form, Formik, FormikHelpers, useFormikContext } from 'formik';
 import { Actions, useStoreActions, useStoreState } from 'easy-peasy';
@@ -10,9 +10,10 @@ import getServers from '@/api/getServers';
 import { Server } from '@/api/server/getServer';
 import { ApplicationStore } from '@/state';
 import { Link } from 'react-router-dom';
-import styled from 'styled-components/macro';
+import styled from 'styled-components';
 import tw from 'twin.macro';
 import Input from '@/components/elements/Input';
+import { ip } from '@/lib/formatters';
 
 type Props = RequiredModalProps;
 
@@ -39,7 +40,7 @@ const SearchWatcher = () => {
         if (values.term.length >= 3) {
             submitForm();
         }
-    }, [ values.term ]);
+    }, [values.term]);
 
     return null;
 };
@@ -47,8 +48,10 @@ const SearchWatcher = () => {
 export default ({ ...props }: Props) => {
     const ref = useRef<HTMLInputElement>(null);
     const isAdmin = useStoreState(state => state.user.data!.rootAdmin);
-    const [ servers, setServers ] = useState<Server[]>([]);
-    const { clearAndAddHttpError, clearFlashes } = useStoreActions((actions: Actions<ApplicationStore>) => actions.flashes);
+    const [servers, setServers] = useState<Server[]>([]);
+    const { clearAndAddHttpError, clearFlashes } = useStoreActions(
+        (actions: Actions<ApplicationStore>) => actions.flashes,
+    );
 
     const search = debounce(({ term }: Values, { setSubmitting }: FormikHelpers<Values>) => {
         clearFlashes('search');
@@ -68,10 +71,10 @@ export default ({ ...props }: Props) => {
         if (props.visible) {
             if (ref.current) ref.current.focus();
         }
-    }, [ props.visible ]);
+    }, [props.visible]);
 
     // Formik does not support an innerRef on custom components.
-    const InputWithRef = (props: any) => <Input autoFocus {...props} ref={ref}/>;
+    const InputWithRef = (props: any) => <Input autoFocus {...props} ref={ref} />;
 
     return (
         <Formik
@@ -89,16 +92,15 @@ export default ({ ...props }: Props) => {
                             label={'Search term'}
                             description={'Enter a server name, uuid, or allocation to begin searching.'}
                         >
-                            <SearchWatcher/>
+                            <SearchWatcher />
                             <InputSpinner visible={isSubmitting}>
-                                <Field as={InputWithRef} name={'term'}/>
+                                <Field as={InputWithRef} name={'term'} />
                             </InputSpinner>
                         </FormikFieldWrapper>
                     </Form>
-                    {servers.length > 0 &&
-                    <div css={tw`mt-6`}>
-                        {
-                            servers.map(server => (
+                    {servers.length > 0 && (
+                        <div css={tw`mt-6`}>
+                            {servers.map(server => (
                                 <ServerResult
                                     key={server.uuid}
                                     to={`/server/${server.id}`}
@@ -107,11 +109,13 @@ export default ({ ...props }: Props) => {
                                     <div css={tw`flex-1 mr-4`}>
                                         <p css={tw`text-sm`}>{server.name}</p>
                                         <p css={tw`mt-1 text-xs text-neutral-400`}>
-                                            {
-                                                server.allocations.filter(alloc => alloc.isDefault).map(allocation => (
-                                                    <span key={allocation.ip + allocation.port.toString()}>{allocation.alias || allocation.ip}:{allocation.port}</span>
-                                                ))
-                                            }
+                                            {server.allocations
+                                                .filter(alloc => alloc.isDefault)
+                                                .map(allocation => (
+                                                    <span key={allocation.ip + allocation.port.toString()}>
+                                                        {allocation.alias || ip(allocation.ip)}:{allocation.port}
+                                                    </span>
+                                                ))}
                                         </p>
                                     </div>
                                     <div css={tw`flex-none text-right`}>
@@ -120,10 +124,9 @@ export default ({ ...props }: Props) => {
                                         </span>
                                     </div>
                                 </ServerResult>
-                            ))
-                        }
-                    </div>
-                    }
+                            ))}
+                        </div>
+                    )}
                 </Modal>
             )}
         </Formik>

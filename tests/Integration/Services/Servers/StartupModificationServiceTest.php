@@ -3,7 +3,6 @@
 namespace Pterodactyl\Tests\Integration\Services\Servers;
 
 use Exception;
-use Pterodactyl\Models\Egg;
 use Pterodactyl\Models\Nest;
 use Pterodactyl\Models\User;
 use Pterodactyl\Models\Server;
@@ -23,8 +22,7 @@ class StartupModificationServiceTest extends IntegrationTestCase
      */
     public function testNonAdminCanModifyServerVariables()
     {
-        // Theoretically lines up with the Bungeecord Minecraft egg.
-        $server = $this->createServerModel(['egg_id' => 1]);
+        $server = $this->createServerModel();
 
         try {
             $this->app->make(StartupModificationService::class)->handle($server, [
@@ -35,8 +33,8 @@ class StartupModificationServiceTest extends IntegrationTestCase
                 ],
             ]);
 
-            $this->assertTrue(false, 'This assertion should not be called.');
-        } catch (Exception $exception) {
+            $this->fail('This assertion should not be called.');
+        } catch (\Exception $exception) {
             $this->assertInstanceOf(ValidationException::class, $exception);
 
             /** @var \Illuminate\Validation\ValidationException $exception */
@@ -111,7 +109,7 @@ class StartupModificationServiceTest extends IntegrationTestCase
 
         $clone = $this->cloneEggAndVariables($server->egg);
         // This makes the BUNGEE_VERSION variable not user editable.
-        $clone->variables()->first()->update([
+        $clone->variables()->orderBy('id')->first()->update([
             'user_editable' => false,
         ]);
 
@@ -120,7 +118,7 @@ class StartupModificationServiceTest extends IntegrationTestCase
 
         ServerVariable::query()->updateOrCreate([
             'server_id' => $server->id,
-            'variable_id' => $server->variables[0]->id,
+            'variable_id' => $server->variables()->orderBy('id')->first()->id,
         ], ['variable_value' => 'EXIST']);
 
         $response = $this->getService()->handle($server, [
@@ -130,9 +128,10 @@ class StartupModificationServiceTest extends IntegrationTestCase
             ],
         ]);
 
-        $this->assertCount(2, $response->variables);
-        $this->assertSame('EXIST', $response->variables[0]->server_value);
-        $this->assertSame('test.jar', $response->variables[1]->server_value);
+        $variables = $response->variables->sortBy('server_value')->values();
+        $this->assertCount(2, $variables);
+        $this->assertSame('EXIST', $variables->get(0)->server_value);
+        $this->assertSame('test.jar', $variables->get(1)->server_value);
 
         $response = $this->getService()
             ->setUserLevel(User::USER_LEVEL_ADMIN)
@@ -143,9 +142,11 @@ class StartupModificationServiceTest extends IntegrationTestCase
                 ],
             ]);
 
-        $this->assertCount(2, $response->variables);
-        $this->assertSame('1234', $response->variables[0]->server_value);
-        $this->assertSame('test.jar', $response->variables[1]->server_value);
+        $variables = $response->variables->sortBy('server_value')->values();
+
+        $this->assertCount(2, $variables);
+        $this->assertSame('1234', $variables->get(0)->server_value);
+        $this->assertSame('test.jar', $variables->get(1)->server_value);
     }
 
     /**
@@ -163,10 +164,7 @@ class StartupModificationServiceTest extends IntegrationTestCase
             ->handle($server, ['egg_id' => 123456789]);
     }
 
-    /**
-     * @return \Pterodactyl\Services\Servers\StartupModificationService
-     */
-    private function getService()
+    private function getService(): StartupModificationService
     {
         return $this->app->make(StartupModificationService::class);
     }

@@ -1,5 +1,5 @@
 import tw from 'twin.macro';
-import { createGlobalStyle } from 'styled-components/macro';
+import { createGlobalStyle } from 'styled-components';
 
 export default createGlobalStyle`
     body {
@@ -58,12 +58,6 @@ export default createGlobalStyle`
         border-top-width: 4px;
         border-bottom-width: 4px;
         -webkit-border-radius: 4px 9px;
-    }
-
-    ::-webkit-scrollbar-thumb:hover {
-        -webkit-box-shadow:
-        inset 0 0 0 1px hsl(212, 92%, 43%),
-        inset 0 0 0 4px hsl(212, 92%, 43%);
     }
 
     ::-webkit-scrollbar-corner {

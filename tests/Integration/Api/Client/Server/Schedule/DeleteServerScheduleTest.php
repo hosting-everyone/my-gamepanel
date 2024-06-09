@@ -13,10 +13,9 @@ class DeleteServerScheduleTest extends ClientApiIntegrationTestCase
     /**
      * Test that a schedule can be deleted from the system.
      *
-     * @param array $permissions
      * @dataProvider permissionsDataProvider
      */
-    public function testScheduleCanBeDeleted($permissions)
+    public function testScheduleCanBeDeleted(array $permissions)
     {
         [$user, $server] = $this->generateTestAccount($permissions);
 
@@ -24,7 +23,7 @@ class DeleteServerScheduleTest extends ClientApiIntegrationTestCase
         $task = Task::factory()->create(['schedule_id' => $schedule->id]);
 
         $this->actingAs($user)
-            ->deleteJson("/api/client/servers/{$server->uuid}/schedules/{$schedule->id}")
+            ->deleteJson("/api/client/servers/$server->uuid/schedules/$schedule->id")
             ->assertStatus(Response::HTTP_NO_CONTENT);
 
         $this->assertDatabaseMissing('schedules', ['id' => $schedule->id]);
@@ -39,7 +38,7 @@ class DeleteServerScheduleTest extends ClientApiIntegrationTestCase
         [$user, $server] = $this->generateTestAccount();
 
         $this->actingAs($user)
-            ->deleteJson("/api/client/servers/{$server->uuid}/schedules/123456789")
+            ->deleteJson("/api/client/servers/$server->uuid/schedules/123456789")
             ->assertStatus(Response::HTTP_NOT_FOUND);
     }
 
@@ -50,12 +49,12 @@ class DeleteServerScheduleTest extends ClientApiIntegrationTestCase
     public function testNotFoundErrorIsReturnedIfScheduleDoesNotBelongToServer()
     {
         [$user, $server] = $this->generateTestAccount();
-        [, $server2] = $this->generateTestAccount(['user_id' => $user->id]);
+        $server2 = $this->createServerModel(['owner_id' => $user->id]);
 
         $schedule = Schedule::factory()->create(['server_id' => $server2->id]);
 
         $this->actingAs($user)
-            ->deleteJson("/api/client/servers/{$server->uuid}/schedules/{$schedule->id}")
+            ->deleteJson("/api/client/servers/$server->uuid/schedules/$schedule->id")
             ->assertStatus(Response::HTTP_NOT_FOUND);
 
         $this->assertDatabaseHas('schedules', ['id' => $schedule->id]);
@@ -72,13 +71,13 @@ class DeleteServerScheduleTest extends ClientApiIntegrationTestCase
         $schedule = Schedule::factory()->create(['server_id' => $server->id]);
 
         $this->actingAs($user)
-            ->deleteJson("/api/client/servers/{$server->uuid}/schedules/{$schedule->id}")
+            ->deleteJson("/api/client/servers/$server->uuid/schedules/$schedule->id")
             ->assertStatus(Response::HTTP_FORBIDDEN);
 
         $this->assertDatabaseHas('schedules', ['id' => $schedule->id]);
     }
 
-    public function permissionsDataProvider(): array
+    public static function permissionsDataProvider(): array
     {
         return [[[]], [[Permission::ACTION_SCHEDULE_DELETE]]];
     }

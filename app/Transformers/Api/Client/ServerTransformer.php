@@ -4,24 +4,20 @@ namespace Pterodactyl\Transformers\Api\Client;
 
 use Pterodactyl\Models\Egg;
 use Pterodactyl\Models\Server;
-use Pterodactyl\Models\Subuser;
+use League\Fractal\Resource\Item;
 use Pterodactyl\Models\Allocation;
 use Pterodactyl\Models\Permission;
 use Illuminate\Container\Container;
-use Pterodactyl\Models\EggVariable;
+use League\Fractal\Resource\Collection;
+use League\Fractal\Resource\NullResource;
+use Pterodactyl\Transformers\Api\Transformer;
 use Pterodactyl\Services\Servers\StartupCommandService;
 
-class ServerTransformer extends BaseClientTransformer
+class ServerTransformer extends Transformer
 {
-    /**
-     * @var string[]
-     */
-    protected $defaultIncludes = ['allocations', 'variables'];
+    protected array $defaultIncludes = ['allocations', 'variables'];
 
-    /**
-     * @var array
-     */
-    protected $availableIncludes = ['egg', 'subusers'];
+    protected array $availableIncludes = ['egg', 'subusers'];
 
     public function getResourceName(): string
     {
@@ -37,16 +33,19 @@ class ServerTransformer extends BaseClientTransformer
         /** @var \Pterodactyl\Services\Servers\StartupCommandService $service */
         $service = Container::getInstance()->make(StartupCommandService::class);
 
+        $user = $this->request->user();
+
         return [
-            'server_owner' => $this->getKey()->user_id === $server->owner_id,
+            'server_owner' => $user->id === $server->owner_id,
             'identifier' => $server->uuidShort,
             'internal_id' => $server->id,
             'uuid' => $server->uuid,
             'name' => $server->name,
             'node' => $server->node->name,
+            'is_node_under_maintenance' => $server->node->isUnderMaintenance(),
             'sftp_details' => [
                 'ip' => $server->node->fqdn,
-                'port' => $server->node->daemonSFTP,
+                'port' => $server->node->public_port_sftp,
             ],
             'description' => $server->description,
             'limits' => [
@@ -56,9 +55,9 @@ class ServerTransformer extends BaseClientTransformer
                 'io' => $server->io,
                 'cpu' => $server->cpu,
                 'threads' => $server->threads,
-                'oom_disabled' => $server->oom_disabled,
+                'oom_killer' => $server->oom_killer,
             ],
-            'invocation' => $service->handle($server, !$this->getUser()->can(Permission::ACTION_STARTUP_READ, $server)),
+            'invocation' => $service->handle($server, !$user->can(Permission::ACTION_STARTUP_READ, $server)),
             'docker_image' => $server->image,
             'egg_features' => $server->egg->inherit_features,
             'feature_limits' => [
@@ -67,25 +66,18 @@ class ServerTransformer extends BaseClientTransformer
                 'backups' => $server->backup_limit,
             ],
             'status' => $server->status,
-            // This field is deprecated, please use "status".
-            'is_suspended' => $server->isSuspended(),
-            // This field is deprecated, please use "status".
-            'is_installing' => !$server->isInstalled(),
             'is_transferring' => !is_null($server->transfer),
         ];
     }
 
     /**
      * Returns the allocations associated with this server.
-     *
-     * @return \League\Fractal\Resource\Collection|\League\Fractal\Resource\NullResource
-     *
-     * @throws \Pterodactyl\Exceptions\Transformer\InvalidTransformerLevelException
      */
-    public function includeAllocations(Server $server)
+    public function includeAllocations(Server $server): Collection
     {
-        $transformer = $this->makeTransformer(AllocationTransformer::class);
+        $transformer = new AllocationTransformer();
 
+        $user = $this->request->user();
         // While we include this permission, we do need to actually handle it slightly different here
         // for the purpose of keeping things functionally working. If the user doesn't have read permissions
         // for the allocations we'll only return the primary server allocation, and any notes associated
@@ -93,59 +85,42 @@ class ServerTransformer extends BaseClientTransformer
         //
         // This allows us to avoid too much permission regression, without also hiding information that
         // is generally needed for the frontend to make sense when browsing or searching results.
-        if (!$this->getUser()->can(Permission::ACTION_ALLOCATION_READ, $server)) {
+        if (!$user->can(Permission::ACTION_ALLOCATION_READ, $server)) {
             $primary = clone $server->allocation;
             $primary->notes = null;
 
-            return $this->collection([$primary], $transformer, Allocation::RESOURCE_NAME);
+            return $this->collection([$primary], $transformer);
         }
 
-        return $this->collection($server->allocations, $transformer, Allocation::RESOURCE_NAME);
+        return $this->collection($server->allocations, $transformer);
     }
 
-    /**
-     * @return \League\Fractal\Resource\Collection|\League\Fractal\Resource\NullResource
-     *
-     * @throws \Pterodactyl\Exceptions\Transformer\InvalidTransformerLevelException
-     */
-    public function includeVariables(Server $server)
+    public function includeVariables(Server $server): Collection|NullResource
     {
-        if (!$this->getUser()->can(Permission::ACTION_STARTUP_READ, $server)) {
+        if (!$this->request->user()->can(Permission::ACTION_STARTUP_READ, $server)) {
             return $this->null();
         }
 
-        return $this->collection(
-            $server->variables->where('user_viewable', true),
-            $this->makeTransformer(EggVariableTransformer::class),
-            EggVariable::RESOURCE_NAME
-        );
+        return $this->collection($server->variables->where('user_viewable', true), new EggVariableTransformer());
     }
 
     /**
      * Returns the egg associated with this server.
-     *
-     * @return \League\Fractal\Resource\Item
-     *
-     * @throws \Pterodactyl\Exceptions\Transformer\InvalidTransformerLevelException
      */
-    public function includeEgg(Server $server)
+    public function includeEgg(Server $server): Item
     {
-        return $this->item($server->egg, $this->makeTransformer(EggTransformer::class), Egg::RESOURCE_NAME);
+        return $this->item($server->egg, new EggTransformer());
     }
 
     /**
      * Returns the subusers associated with this server.
-     *
-     * @return \League\Fractal\Resource\Collection|\League\Fractal\Resource\NullResource
-     *
-     * @throws \Pterodactyl\Exceptions\Transformer\InvalidTransformerLevelException
      */
-    public function includeSubusers(Server $server)
+    public function includeSubusers(Server $server): Collection|NullResource
     {
-        if (!$this->getUser()->can(Permission::ACTION_USER_READ, $server)) {
+        if (!$this->request->user()->can(Permission::ACTION_USER_READ, $server)) {
             return $this->null();
         }
 
-        return $this->collection($server->subusers, $this->makeTransformer(SubuserTransformer::class), Subuser::RESOURCE_NAME);
+        return $this->collection($server->subusers, new SubuserTransformer());
     }
 }

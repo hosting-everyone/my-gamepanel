@@ -2,6 +2,7 @@
 
 namespace Pterodactyl\Tests\Integration\Api\Client;
 
+use Illuminate\Support\Str;
 use Pterodactyl\Models\User;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Hash;
@@ -25,8 +26,6 @@ class AccountControllerTest extends ClientApiIntegrationTestCase
                 'admin' => false,
                 'username' => $user->username,
                 'email' => $user->email,
-                'first_name' => $user->name_first,
-                'last_name' => $user->name_last,
                 'language' => $user->language,
             ],
         ]);
@@ -41,17 +40,17 @@ class AccountControllerTest extends ClientApiIntegrationTestCase
         $user = User::factory()->create();
 
         $response = $this->actingAs($user)->putJson('/api/client/account/email', [
-            'email' => 'hodor@example.com',
+            'email' => $email = Str::random() . '@example.com',
             'password' => 'password',
         ]);
 
         $response->assertStatus(Response::HTTP_NO_CONTENT);
 
-        $this->assertDatabaseHas('users', ['id' => $user->id, 'email' => 'hodor@example.com']);
+        $this->assertDatabaseHas('users', ['id' => $user->id, 'email' => $email]);
     }
 
     /**
-     * Tests that an email is not updated if the password provided in the reuqest is not
+     * Tests that an email is not updated if the password provided in the request is not
      * valid for the account.
      */
     public function testEmailIsNotUpdatedWhenPasswordIsInvalid()

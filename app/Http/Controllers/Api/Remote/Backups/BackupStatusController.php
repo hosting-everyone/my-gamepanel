@@ -5,56 +5,59 @@ namespace Pterodactyl\Http\Controllers\Api\Remote\Backups;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Pterodactyl\Models\Backup;
-use Pterodactyl\Models\Server;
-use Pterodactyl\Models\AuditLog;
 use Illuminate\Http\JsonResponse;
-use League\Flysystem\AwsS3v3\AwsS3Adapter;
+use Pterodactyl\Facades\Activity;
 use Pterodactyl\Exceptions\DisplayException;
 use Pterodactyl\Http\Controllers\Controller;
 use Pterodactyl\Extensions\Backups\BackupManager;
+use Pterodactyl\Extensions\Filesystem\S3Filesystem;
+use Pterodactyl\Exceptions\Http\HttpForbiddenException;
 use Symfony\Component\HttpKernel\Exception\BadRequestHttpException;
 use Pterodactyl\Http\Requests\Api\Remote\ReportBackupCompleteRequest;
 
 class BackupStatusController extends Controller
 {
     /**
-     * @var \Pterodactyl\Extensions\Backups\BackupManager
-     */
-    private $backupManager;
-
-    /**
      * BackupStatusController constructor.
      */
-    public function __construct(BackupManager $backupManager)
+    public function __construct(private BackupManager $backupManager)
     {
-        $this->backupManager = $backupManager;
     }
 
     /**
      * Handles updating the state of a backup.
      *
-     * @return \Illuminate\Http\JsonResponse
-     *
      * @throws \Throwable
      */
-    public function index(ReportBackupCompleteRequest $request, string $backup)
+    public function index(ReportBackupCompleteRequest $request, string $backup): JsonResponse
     {
+        // Get the node associated with the request.
+        /** @var \Pterodactyl\Models\Node $node */
+        $node = $request->attributes->get('node');
+
         /** @var \Pterodactyl\Models\Backup $model */
-        $model = Backup::query()->where('uuid', $backup)->firstOrFail();
+        $model = Backup::query()
+            ->where('uuid', $backup)
+            ->firstOrFail();
+
+        // Check that the backup is "owned" by the node making the request. This avoids other nodes
+        // from messing with backups that they don't own.
+        /** @var \Pterodactyl\Models\Server $server */
+        $server = $model->server;
+        if ($server->node_id !== $node->id) {
+            throw new HttpForbiddenException('You do not have permission to access that backup.');
+        }
 
         if ($model->is_successful) {
             throw new BadRequestHttpException('Cannot update the status of a backup that is already marked as completed.');
         }
 
-        $action = $request->input('successful')
-            ? AuditLog::SERVER__BACKUP_COMPELTED
-            : AuditLog::SERVER__BACKUP_FAILED;
+        $action = $request->boolean('successful') ? 'server:backup.complete' : 'server:backup.fail';
+        $log = Activity::event($action)->subject($model, $model->server)->property('name', $model->name);
 
-        $model->server->audit($action, function (AuditLog $audit) use ($model, $request) {
-            $audit->is_system = true;
-            $audit->metadata = ['backup_uuid' => $model->uuid];
-
+        $log->transaction(function () use ($model, $request) {
             $successful = $request->boolean('successful');
+
             $model->fill([
                 'is_successful' => $successful,
                 // Change the lock state to unlocked if this was a failed backup so that it can be
@@ -69,8 +72,8 @@ class BackupStatusController extends Controller
             // Check if we are using the s3 backup adapter. If so, make sure we mark the backup as
             // being completed in S3 correctly.
             $adapter = $this->backupManager->adapter();
-            if ($adapter instanceof AwsS3Adapter) {
-                $this->completeMultipartUpload($model, $adapter, $successful);
+            if ($adapter instanceof S3Filesystem) {
+                $this->completeMultipartUpload($model, $adapter, $successful, $request->input('parts'));
             }
         });
 
@@ -85,47 +88,42 @@ class BackupStatusController extends Controller
      * The only thing the successful field does is update the entry value for the audit logs
      * table tracking for this restoration.
      *
-     * @return \Illuminate\Http\JsonResponse
-     *
      * @throws \Throwable
      */
-    public function restore(Request $request, string $backup)
+    public function restore(Request $request, string $backup): JsonResponse
     {
         /** @var \Pterodactyl\Models\Backup $model */
         $model = Backup::query()->where('uuid', $backup)->firstOrFail();
-        $action = $request->get('successful')
-            ? AuditLog::SERVER__BACKUP_RESTORE_COMPLETED
-            : AuditLog::SERVER__BACKUP_RESTORE_FAILED;
 
-        // Just create a new audit entry for this event and update the server state
-        // so that power actions, file management, and backups can resume as normal.
-        $model->server->audit($action, function (AuditLog $audit, Server $server) use ($backup) {
-            $audit->is_system = true;
-            $audit->metadata = ['backup_uuid' => $backup];
-            $server->update(['status' => null]);
-        });
+        $model->server->update(['status' => null]);
+
+        Activity::event($request->boolean('successful') ? 'server:backup.restore-complete' : 'server.backup.restore-failed')
+            ->subject($model, $model->server)
+            ->property('name', $model->name)
+            ->log();
 
         return new JsonResponse([], JsonResponse::HTTP_NO_CONTENT);
     }
 
     /**
-     * Marks a multipart upload in a given S3-compatiable instance as failed or successful for
+     * Marks a multipart upload in a given S3-compatible instance as failed or successful for
      * the given backup.
      *
      * @throws \Exception
      * @throws \Pterodactyl\Exceptions\DisplayException
      */
-    protected function completeMultipartUpload(Backup $backup, AwsS3Adapter $adapter, bool $successful)
+    protected function completeMultipartUpload(Backup $backup, S3Filesystem $adapter, bool $successful, ?array $parts): void
     {
         // This should never really happen, but if it does don't let us fall victim to Amazon's
         // wildly fun error messaging. Just stop the process right here.
         if (empty($backup->upload_id)) {
-            // A failed backup doesn't need to error here, this can happen if the backup encouters
+            // A failed backup doesn't need to error here, this can happen if the backup encounters
             // an error before we even start the upload. AWS gives you tooling to clear these failed
             // multipart uploads as needed too.
             if (!$successful) {
                 return;
             }
+
             throw new DisplayException('Cannot complete backup request: no upload_id present on model.');
         }
 
@@ -144,8 +142,19 @@ class BackupStatusController extends Controller
 
         // Otherwise send a CompleteMultipartUpload request.
         $params['MultipartUpload'] = [
-            'Parts' => $client->execute($client->getCommand('ListParts', $params))['Parts'],
+            'Parts' => [],
         ];
+
+        if (is_null($parts)) {
+            $params['MultipartUpload']['Parts'] = $client->execute($client->getCommand('ListParts', $params))['Parts'];
+        } else {
+            foreach ($parts as $part) {
+                $params['MultipartUpload']['Parts'][] = [
+                    'ETag' => $part['etag'],
+                    'PartNumber' => $part['part_number'],
+                ];
+            }
+        }
 
         $client->execute($client->getCommand('CompleteMultipartUpload', $params));
     }

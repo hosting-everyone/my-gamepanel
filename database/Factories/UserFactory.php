@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use Carbon\Carbon;
 use Ramsey\Uuid\Uuid;
+use Illuminate\Support\Str;
 use Pterodactyl\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -24,12 +25,10 @@ class UserFactory extends Factory
         static $password;
 
         return [
-            'external_id' => $this->faker->unique()->isbn10,
+            'external_id' => null,
             'uuid' => Uuid::uuid4()->toString(),
-            'username' => $this->faker->unique()->userName,
-            'email' => $this->faker->unique()->safeEmail,
-            'name_first' => $this->faker->firstName,
-            'name_last' => $this->faker->lastName,
+            'username' => $this->faker->userName . '_' . Str::random(10),
+            'email' => Str::random(32) . '@example.com',
             'password' => $password ?: $password = bcrypt('password'),
             'language' => 'en',
             'root_admin' => false,
@@ -42,12 +41,8 @@ class UserFactory extends Factory
     /**
      * Indicate that the user is an admin.
      */
-    public function admin(): Factory
+    public function admin(): static
     {
-        return $this->state(function (array $attributes) {
-            return [
-                'root_admin' => true,
-            ];
-        });
+        return $this->state(['root_admin' => true]);
     }
 }

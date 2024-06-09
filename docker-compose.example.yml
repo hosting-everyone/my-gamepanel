@@ -8,7 +8,7 @@ x-common:
     MYSQL_ROOT_PASSWORD: "CHANGE_ME_TOO"
   panel:
     &panel-environment
-    APP_URL: "https://example.com"
+    APP_URL: "http://example.com"
     # A list of valid timezones can be found here: http://php.net/manual/en/timezones.php
     APP_TIMEZONE: "UTC"
     APP_SERVICE_AUTHOR: "noreply@example.com"
@@ -34,7 +34,7 @@ x-common:
 #
 services:
   database:
-    image: library/mysql:8.0
+    image: mariadb:10.5
     restart: always
     command: --default-authentication-plugin=mysql_native_password
     volumes:
@@ -57,7 +57,7 @@ services:
       - cache
     volumes:
       - "/srv/pterodactyl/var/:/app/var/"
-      - "/srv/pterodactyl/nginx/:/etc/nginx/conf.d/"
+      - "/srv/pterodactyl/nginx/:/etc/nginx/http.d/"
       - "/srv/pterodactyl/certs/:/etc/letsencrypt/"
       - "/srv/pterodactyl/logs/:/app/storage/logs"
     environment:
@@ -70,6 +70,7 @@ services:
       QUEUE_DRIVER: "redis"
       REDIS_HOST: "cache"
       DB_HOST: "database"
+      DB_PORT: "3306"
 networks:
   default:
     ipam:

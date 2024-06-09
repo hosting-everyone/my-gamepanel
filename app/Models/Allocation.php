@@ -2,7 +2,11 @@
 
 namespace Pterodactyl\Models;
 
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
 /**
+ * Pterodactyl\Models\Allocation.
+ *
  * @property int $id
  * @property int $node_id
  * @property string $ip
@@ -16,6 +20,23 @@ namespace Pterodactyl\Models;
  * @property bool $has_alias
  * @property \Pterodactyl\Models\Server|null $server
  * @property \Pterodactyl\Models\Node $node
+ * @property string $hashid
+ *
+ * @method static \Database\Factories\AllocationFactory factory(...$parameters)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation newModelQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation newQuery()
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation query()
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation whereCreatedAt($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation whereId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation whereIp($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation whereIpAlias($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation whereNodeId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation whereNotes($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation wherePort($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation whereServerId($value)
+ * @method static \Illuminate\Database\Eloquent\Builder|Allocation whereUpdatedAt($value)
+ *
+ * @mixin \Eloquent
  */
 class Allocation extends Model
 {
@@ -27,22 +48,16 @@ class Allocation extends Model
 
     /**
      * The table associated with the model.
-     *
-     * @var string
      */
     protected $table = 'allocations';
 
     /**
      * Fields that are not mass assignable.
-     *
-     * @var array
      */
     protected $guarded = ['id', 'created_at', 'updated_at'];
 
     /**
      * Cast values to correct type.
-     *
-     * @var array
      */
     protected $casts = [
         'node_id' => 'integer',
@@ -50,10 +65,7 @@ class Allocation extends Model
         'server_id' => 'integer',
     ];
 
-    /**
-     * @var array
-     */
-    public static $validationRules = [
+    public static array $validationRules = [
         'node_id' => 'required|exists:nodes,id',
         'ip' => 'required|ip',
         'port' => 'required|numeric|between:1024,65535',
@@ -63,55 +75,54 @@ class Allocation extends Model
     ];
 
     /**
-     * Return a hashid encoded string to represent the ID of the allocation.
-     *
-     * @return string
+     * {@inheritDoc}
      */
-    public function getHashidAttribute()
+    public function getRouteKeyName(): string
+    {
+        return $this->getKeyName();
+    }
+
+    /**
+     * Return a hashid encoded string to represent the ID of the allocation.
+     */
+    public function getHashidAttribute(): string
     {
         return app()->make('hashids')->encode($this->id);
     }
 
     /**
      * Accessor to automatically provide the IP alias if defined.
-     *
-     * @param string|null $value
-     *
-     * @return string
      */
-    public function getAliasAttribute($value)
+    public function getAliasAttribute(?string $value): string
     {
         return (is_null($this->ip_alias)) ? $this->ip : $this->ip_alias;
     }
 
     /**
      * Accessor to quickly determine if this allocation has an alias.
-     *
-     * @param string|null $value
-     *
-     * @return bool
      */
-    public function getHasAliasAttribute($value)
+    public function getHasAliasAttribute(?string $value): bool
     {
         return !is_null($this->ip_alias);
     }
 
+    public function toString(): string
+    {
+        return sprintf('%s:%s', $this->ip, $this->port);
+    }
+
     /**
      * Gets information for the server associated with this allocation.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
-    public function server()
+    public function server(): BelongsTo
     {
         return $this->belongsTo(Server::class);
     }
 
     /**
      * Return the Node model associated with this allocation.
-     *
-     * @return \Illuminate\Database\Eloquent\Relations\BelongsTo
      */
-    public function node()
+    public function node(): BelongsTo
     {
         return $this->belongsTo(Node::class);
     }

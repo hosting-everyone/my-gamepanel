@@ -2,13 +2,15 @@
 
 namespace Pterodactyl\Http\Controllers\Auth;
 
-use Carbon\CarbonInterface;
 use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
 use Pterodactyl\Models\User;
 use Illuminate\Http\JsonResponse;
 use PragmaRX\Google2FA\Google2FA;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Contracts\Encryption\Encrypter;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Pterodactyl\Events\Auth\ProvidedAuthenticationToken;
 use Pterodactyl\Http\Requests\Auth\LoginCheckpointRequest;
 use Illuminate\Contracts\Validation\Factory as ValidationFactory;
 
@@ -16,30 +18,21 @@ class LoginCheckpointController extends AbstractLoginController
 {
     private const TOKEN_EXPIRED_MESSAGE = 'The authentication token provided has expired, please refresh the page and try again.';
 
-    private ValidationFactory $validation;
-
-    private Google2FA $google2FA;
-
-    private Encrypter $encrypter;
-
     /**
      * LoginCheckpointController constructor.
      */
-    public function __construct(Encrypter $encrypter, Google2FA $google2FA, ValidationFactory $validation)
-    {
+    public function __construct(
+        private Encrypter $encrypter,
+        private Google2FA $google2FA,
+        private ValidationFactory $validation
+    ) {
         parent::__construct();
-
-        $this->google2FA = $google2FA;
-        $this->encrypter = $encrypter;
-        $this->validation = $validation;
     }
 
     /**
      * Handle a login where the user is required to provide a TOTP authentication
      * token. Once a user has reached this stage it is assumed that they have already
      * provided a valid username and password.
-     *
-     * @return \Illuminate\Http\JsonResponse|void
      *
      * @throws \PragmaRX\Google2FA\Exceptions\IncompatibleWithGoogleAuthenticatorException
      * @throws \PragmaRX\Google2FA\Exceptions\InvalidCharactersException
@@ -65,19 +58,23 @@ class LoginCheckpointController extends AbstractLoginController
         try {
             /** @var \Pterodactyl\Models\User $user */
             $user = User::query()->findOrFail($details['user_id']);
-        } catch (ModelNotFoundException $exception) {
+        } catch (ModelNotFoundException) {
             $this->sendFailedLoginResponse($request, null, self::TOKEN_EXPIRED_MESSAGE);
         }
 
         // Recovery tokens go through a slightly different pathway for usage.
         if (!is_null($recoveryToken = $request->input('recovery_token'))) {
             if ($this->isValidRecoveryToken($user, $recoveryToken)) {
+                Event::dispatch(new ProvidedAuthenticationToken($user, true));
+
                 return $this->sendLoginResponse($user, $request);
             }
         } else {
             $decrypted = $this->encrypter->decrypt($user->totp_secret);
 
-            if ($this->google2FA->verifyKey($decrypted, (string) $request->input('authentication_code') ?? '', config('pterodactyl.auth.2fa.window'))) {
+            if ($this->google2FA->verifyKey($decrypted, $request->input('authentication_code') ?? '', config('pterodactyl.auth.2fa.window'))) {
+                Event::dispatch(new ProvidedAuthenticationToken($user));
+
                 return $this->sendLoginResponse($user, $request);
             }
         }
@@ -89,11 +86,9 @@ class LoginCheckpointController extends AbstractLoginController
      * Determines if a given recovery token is valid for the user account. If we find a matching token
      * it will be deleted from the database.
      *
-     * @return bool
-     *
      * @throws \Exception
      */
-    protected function isValidRecoveryToken(User $user, string $value)
+    protected function isValidRecoveryToken(User $user, string $value): bool
     {
         foreach ($user->recoveryTokens as $token) {
             if (password_verify($value, $token->token)) {
@@ -110,9 +105,6 @@ class LoginCheckpointController extends AbstractLoginController
      * Determines if the data provided from the session is valid or not. This
      * will return false if the data is invalid, or if more time has passed than
      * was configured when the session was written.
-     *
-     * @param array $data
-     * @return bool
      */
     protected function hasValidSessionData(array $data): bool
     {

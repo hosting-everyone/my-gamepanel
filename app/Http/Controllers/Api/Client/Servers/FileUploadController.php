@@ -13,27 +13,18 @@ use Pterodactyl\Http\Requests\Api\Client\Servers\Files\UploadFileRequest;
 class FileUploadController extends ClientApiController
 {
     /**
-     * @var \Pterodactyl\Services\Nodes\NodeJWTService
-     */
-    private $jwtService;
-
-    /**
      * FileUploadController constructor.
      */
     public function __construct(
-        NodeJWTService $jwtService
+        private NodeJWTService $jwtService
     ) {
         parent::__construct();
-
-        $this->jwtService = $jwtService;
     }
 
     /**
-     * Returns a url where files can be uploaded to.
-     *
-     * @return \Illuminate\Http\JsonResponse
+     * Returns an url where files can be uploaded to.
      */
-    public function __invoke(UploadFileRequest $request, Server $server)
+    public function __invoke(UploadFileRequest $request, Server $server): JsonResponse
     {
         return new JsonResponse([
             'object' => 'signed_url',
@@ -44,17 +35,14 @@ class FileUploadController extends ClientApiController
     }
 
     /**
-     * Returns a url where files can be uploaded to.
-     *
-     * @return string
+     * Returns an url where files can be uploaded to.
      */
-    protected function getUploadUrl(Server $server, User $user)
+    protected function getUploadUrl(Server $server, User $user): string
     {
         $token = $this->jwtService
             ->setExpiresAt(CarbonImmutable::now()->addMinutes(15))
-            ->setClaims([
-                'server_uuid' => $server->uuid,
-            ])
+            ->setUser($user)
+            ->setClaims(['server_uuid' => $server->uuid])
             ->handle($server->node, $user->id . $server->uuid);
 
         return sprintf(
