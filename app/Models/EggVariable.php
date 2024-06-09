@@ -2,6 +2,7 @@
 
 namespace Pterodactyl\Models;
 
+
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -76,9 +77,11 @@ class EggVariable extends Model
         'user_viewable' => 0,
     ];
 
-    public function getRequiredAttribute(): bool
+    public function required(): Attribute
     {
-        return in_array('required', explode('|', $this->rules));
+        return Attribute::make(
+            get: fn () => in_array('required', explode('|', $this->rules)),
+        );
     }
 
     /**

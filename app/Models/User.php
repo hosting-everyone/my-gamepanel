@@ -2,6 +2,7 @@
 
 namespace Pterodactyl\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Pterodactyl\Rules\Username;
 use Pterodactyl\Facades\Activity;
 use Illuminate\Support\Collection;
@@ -212,31 +213,17 @@ class User extends Model implements
     }
 
     /**
-     * Store the username as a lowercase string.
+     * Get and Set the username as a lowercase string.
      */
-    public function setUsernameAttribute(string $value)
+    public function username(): Attribute
     {
-        $this->attributes['username'] = mb_strtolower($value);
-    }
-
-    public function avatarUrl(): Attribute
-    {
-        return Attribute::make(
-            get: fn () => 'https://www.gravatar.com/avatar/' . $this->md5 . '.jpg',
+        return new Attribute(
+            get: fn ($username) => mb_strtolower($username),
+            set: fn ($username) => mb_strtolower($username),
         );
     }
 
-    public function adminRoleName(): Attribute
-    {
-        return Attribute::make(
-            get: fn () => is_null($this->adminRole) ? ($this->root_admin ? 'None' : null) : $this->adminRole->name,
-        );
-    }
 
-    public function md5(): Attribute
-    {
-        return Attribute::make(
-            get: fn () => md5(strtolower($this->email)),
         );
     }
 
