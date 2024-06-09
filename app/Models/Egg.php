@@ -2,6 +2,7 @@
 
 namespace Pterodactyl\Models;
 
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -20,15 +21,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property array|null $file_denylist
  * @property string|null $config_files
  * @property string|null $config_startup
- * @property string|null $config_logs
  * @property string|null $config_stop
  * @property int|null $config_from
  * @property string|null $startup
  * @property bool $script_is_privileged
  * @property string|null $script_install
- * @property string $script_entry
- * @property string $script_container
- * @property int|null $copy_script_from
+ * @property ?string $script_entry
+ * @property ?string $script_container
+ * @property ?int $copy_script_from
  * @property \Carbon\Carbon $created_at
  * @property \Carbon\Carbon $updated_at
  * @property string|null $copy_script_install
@@ -36,7 +36,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $copy_script_container
  * @property string|null $inherit_config_files
  * @property string|null $inherit_config_startup
- * @property string|null $inherit_config_logs
  * @property string|null $inherit_config_stop
  * @property string $inherit_file_denylist
  * @property array|null $inherit_features
@@ -80,6 +79,9 @@ class Egg extends Model
      * Fields that are not mass assignable.
      */
     protected $fillable = [
+        'nest_id',
+        'author',
+        'uuid',
         'name',
         'description',
         'features',
@@ -88,7 +90,6 @@ class Egg extends Model
         'file_denylist',
         'config_files',
         'config_startup',
-        'config_logs',
         'config_stop',
         'config_from',
         'startup',
@@ -123,12 +124,11 @@ class Egg extends Model
         'file_denylist' => 'array|nullable',
         'file_denylist.*' => 'string',
         'docker_images' => 'required|array|min:1',
-        'docker_images.*' => 'required|string',
+        'docker_images.*' => ['required', 'string', 'max:191', 'regex:/^[\w#\.\/\- ]*\|*[\w\.\/\-:@ ]*$/'],
         'startup' => 'required|nullable|string',
         'config_from' => 'sometimes|bail|nullable|numeric|exists:eggs,id',
         'config_stop' => 'required_without:config_from|nullable|string|max:191',
         'config_startup' => 'required_without:config_from|nullable|json',
-        'config_logs' => 'required_without:config_from|nullable|json',
         'config_files' => 'required_without:config_from|nullable|json',
         'update_url' => 'sometimes|nullable|string',
         'force_outgoing_ip' => 'sometimes|boolean',
@@ -139,7 +139,6 @@ class Egg extends Model
         'file_denylist' => null,
         'config_stop' => null,
         'config_startup' => null,
-        'config_logs' => null,
         'config_files' => null,
         'update_url' => null,
     ];
@@ -148,113 +147,94 @@ class Egg extends Model
      * Returns the install script for the egg; if egg is copying from another
      * it will return the copied script.
      */
-    public function getCopyScriptInstallAttribute(): ?string
+    public function copyScriptInstall(): Attribute
     {
-        if (!is_null($this->script_install) || is_null($this->copy_script_from)) {
-            return $this->script_install;
-        }
-
-        return $this->scriptFrom->script_install;
+        return new Attribute(
+            get: fn () => (!is_null($this->script_install) || is_null($this->copy_script_from))
+                ? $this->script_install : $this->scriptFrom->script_install,
+        );
     }
 
     /**
      * Returns the entry command for the egg; if egg is copying from another
      * it will return the copied entry command.
      */
-    public function getCopyScriptEntryAttribute(): string
+    public function copyScriptEntry(): Attribute
     {
-        if (!is_null($this->script_entry) || is_null($this->copy_script_from)) {
-            return $this->script_entry;
-        }
-
-        return $this->scriptFrom->script_entry;
+        return new Attribute(
+            get: fn () => (!is_null($this->script_entry) || is_null($this->copy_script_from))
+                ? $this->script_entry : $this->scriptFrom->script_entry,
+        );
     }
 
     /**
      * Returns the install container for the egg; if egg is copying from another
      * it will return the copied install container.
      */
-    public function getCopyScriptContainerAttribute(): string
+    public function copyScriptContainer(): Attribute
     {
-        if (!is_null($this->script_container) || is_null($this->copy_script_from)) {
-            return $this->script_container;
-        }
-
-        return $this->scriptFrom->script_container;
+        return new Attribute(
+            get: fn () => (!is_null($this->script_container) || is_null($this->copy_script_from))
+                ? $this->script_container : $this->scriptFrom->script_container,
+        );
     }
 
     /**
      * Return the file configuration for an egg.
      */
-    public function getInheritConfigFilesAttribute(): ?string
+    public function inheritConfigFiles(): Attribute
     {
-        if (!is_null($this->config_files) || is_null($this->config_from)) {
-            return $this->config_files;
-        }
-
-        return $this->configFrom->config_files;
+        return new Attribute(
+            get: fn () => (!is_null($this->config_files) || is_null($this->config_from))
+                ? $this->config_files : $this->configFrom->config_files,
+        );
     }
 
     /**
      * Return the startup configuration for an egg.
      */
-    public function getInheritConfigStartupAttribute(): ?string
+    public function inheritConfigStartup(): Attribute
     {
-        if (!is_null($this->config_startup) || is_null($this->config_from)) {
-            return $this->config_startup;
-        }
-
-        return $this->configFrom->config_startup;
+        return new Attribute(
+            get: fn () => (!is_null($this->config_startup) || is_null($this->config_from))
+                ? $this->config_startup : $this->configFrom->config_startup,
+        );
     }
 
     /**
-     * Return the log reading configuration for an egg.
-     */
-    public function getInheritConfigLogsAttribute(): ?string
-    {
-        if (!is_null($this->config_logs) || is_null($this->config_from)) {
-            return $this->config_logs;
-        }
 
-        return $this->configFrom->config_logs;
-    }
-
-    /**
      * Return the stop command configuration for an egg.
      */
-    public function getInheritConfigStopAttribute(): ?string
+    public function inheritConfigStop(): Attribute
     {
-        if (!is_null($this->config_stop) || is_null($this->config_from)) {
-            return $this->config_stop;
-        }
-
-        return $this->configFrom->config_stop;
+        return new Attribute(
+            get: fn () => (!is_null($this->config_stop) || is_null($this->config_from))
+                ? $this->config_stop : $this->configFrom->config_stop,
+        );
     }
 
     /**
      * Returns the features available to this egg from the parent configuration if there are
      * no features defined for this egg specifically and there is a parent egg configured.
      */
-    public function getInheritFeaturesAttribute(): ?array
+    public function inheritFeatures(): Attribute
     {
-        if (!is_null($this->features) || is_null($this->config_from)) {
-            return $this->features;
-        }
-
-        return $this->configFrom->features;
+        return new Attribute(
+            get: fn () => (!is_null($this->features) || is_null($this->config_from))
+                ? $this->features : $this->configFrom->features,
+        );
     }
 
     /**
      * Returns the features available to this egg from the parent configuration if there are
      * no features defined for this egg specifically and there is a parent egg configured.
      */
-    public function getInheritFileDenylistAttribute(): ?array
+    public function inheritFileDenylist(): Attribute
     {
-        if (is_null($this->config_from)) {
-            return $this->file_denylist;
-        }
-
-        return $this->configFrom->file_denylist;
+        return new Attribute(
+            get: fn () => is_null($this->config_from)
+                ? $this->file_denylist : $this->configFrom->file_denylist,
+        );
     }
 
     /**

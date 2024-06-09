@@ -5,6 +5,7 @@ namespace Pterodactyl\Models;
 use Cron\CronExpression;
 use Carbon\CarbonImmutable;
 use Illuminate\Container\Container;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Pterodactyl\Contracts\Extensions\HashidsInterface;
@@ -71,14 +72,8 @@ class Schedule extends Model
         'is_active' => 'boolean',
         'is_processing' => 'boolean',
         'only_when_online' => 'boolean',
-    ];
-
-    /**
-     * Columns to mutate to a date.
-     */
-    protected $dates = [
-        'last_run_at',
-        'next_run_at',
+        'last_run_at' => 'datetime',
+        'next_run_at' => 'datetime',
     ];
 
     protected $attributes = [
@@ -133,9 +128,11 @@ class Schedule extends Model
     /**
      * Return a hashid encoded string to represent the ID of the schedule.
      */
-    public function getHashidAttribute(): string
+    public function hashid(): Attribute
     {
-        return Container::getInstance()->make(HashidsInterface::class)->encode($this->id);
+        return Attribute::make(
+            get: fn () => Container::getInstance()->make(HashidsInterface::class)->encode($this->id),
+        );
     }
 
     /**

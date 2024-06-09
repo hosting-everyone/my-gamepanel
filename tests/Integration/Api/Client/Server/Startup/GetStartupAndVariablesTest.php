@@ -42,7 +42,7 @@ class GetStartupAndVariablesTest extends ClientApiIntegrationTestCase
         $response->assertJsonPath('object', 'list');
         $response->assertJsonCount(1, 'data');
         $response->assertJsonPath('data.0.object', EggVariable::RESOURCE_NAME);
-        $this->assertJsonTransformedWith($response->json('data.0.attributes'), $egg->variables[1]);
+        $this->assertJsonTransformedWith($response->json('data.0.attributes'), $egg->variables()->orderBy('id', 'desc')->first());
     }
 
     /**
@@ -58,7 +58,7 @@ class GetStartupAndVariablesTest extends ClientApiIntegrationTestCase
         $this->actingAs($user2)->getJson($this->link($server) . '/startup')->assertNotFound();
     }
 
-    public function permissionsDataProvider(): array
+    public static function permissionsDataProvider(): array
     {
         return [[[]], [[Permission::ACTION_STARTUP_READ]]];
     }
